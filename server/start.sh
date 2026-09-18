@@ -2,7 +2,7 @@
 set -eu
 
 # Start the local BgUtils PO-token provider. It stays private to this container.
-/usr/local/bin/node /app/build/main.js --host 127.0.0.1 --port 4416 >/tmp/bgutil.log 2>&1 &
+cd /app && /usr/local/bin/node build/main.js --host 127.0.0.1 --port 4416 >/tmp/bgutil.log 2>&1 &
 BGUTIL_PID=$!
 
 cleanup() {

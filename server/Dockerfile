@@ -5,6 +5,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg python3 
 RUN pip3 install --no-cache-dir --break-system-packages -U "yt-dlp[default]" "bgutil-ytdlp-pot-provider==2.0.0"
 
 WORKDIR /app/converter
+# Make the provider build visible even if the base image entrypoint resolves relative to /app/converter.
+RUN ln -s /app/build /app/converter/build
 COPY package.json ./
 RUN npm install --omit=dev
 COPY server.js ./
