@@ -12,7 +12,6 @@ const MAX_DURATION_SECONDS = 30 * 60;
 const MAX_FILE_SIZE = 500 * 1024 * 1024;
 const YTDLP_COMMON_ARGS = [
   '--js-runtimes', 'node',
-  '--extractor-args', 'youtube:player_client=mweb',
   '--extractor-args', 'youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416'
 ];
 
