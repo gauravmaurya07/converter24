@@ -10,6 +10,10 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 const MAX_DURATION_SECONDS = 30 * 60;
 const MAX_FILE_SIZE = 500 * 1024 * 1024;
+const YTDLP_COMMON_ARGS = [
+  '--js-runtimes', 'node',
+  '--extractor-args', 'youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416'
+];
 
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: '100kb' }));
@@ -63,6 +67,7 @@ app.get('/api/convert', async (req, res) => {
 
   try {
     const infoResult = await run('yt-dlp', [
+      ...YTDLP_COMMON_ARGS,
       '--dump-single-json', '--skip-download', '--no-playlist', '--no-warnings', url
     ]);
     const info = JSON.parse(infoResult.stdout);
@@ -75,12 +80,12 @@ app.get('/api/convert', async (req, res) => {
 
     if (format === 'mp3') {
       const bitrate = ['128', '192', '256', '320'].includes(String(quality)) ? String(quality) : '320';
-      args = ['--no-playlist', '--max-filesize', '500M', '-x', '--audio-format', 'mp3', '--audio-quality', `${bitrate}K`, '-o', path.join(workDir, `${title}.%(ext)s`), url];
+      args = [...YTDLP_COMMON_ARGS, '--no-playlist', '--max-filesize', '500M', '-x', '--audio-format', 'mp3', '--audio-quality', `${bitrate}K`, '-o', path.join(workDir, `${title}.%(ext)s`), url];
     } else if (format === 'wav') {
-      args = ['--no-playlist', '--max-filesize', '500M', '-x', '--audio-format', 'wav', '-o', path.join(workDir, `${title}.%(ext)s`), url];
+      args = [...YTDLP_COMMON_ARGS, '--no-playlist', '--max-filesize', '500M', '-x', '--audio-format', 'wav', '-o', path.join(workDir, `${title}.%(ext)s`), url];
     } else {
       const height = ['360', '480', '720', '1080'].includes(String(quality)) ? String(quality) : '1080';
-      args = ['--no-playlist', '--max-filesize', '500M', '-f', `bv*[height<=${height}]+ba/b[height<=${height}]`, '--merge-output-format', 'mp4', '-o', path.join(workDir, `${title}.%(ext)s`), url];
+      args = [...YTDLP_COMMON_ARGS, '--no-playlist', '--max-filesize', '500M', '-f', `bv*[height<=${height}]+ba/b[height<=${height}]`, '--merge-output-format', 'mp4', '-o', path.join(workDir, `${title}.%(ext)s`), url];
     }
 
     await run('yt-dlp', args, { cwd: workDir });
@@ -105,7 +110,7 @@ app.get('/api/convert', async (req, res) => {
     res.on('close', cleanup);
   } catch (error) {
     fs.rm(workDir, { recursive: true, force: true }, () => {});
-    console.error(error);
+    console.error('[converter24] conversion error:', error?.message || error);
     if (!res.headersSent) res.status(500).json({ error: 'Conversion failed. Please try another video.' });
   }
 });

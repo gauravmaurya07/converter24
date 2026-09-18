@@ -1,8 +1,9 @@
-# converter24 media API
+# converter24 Media API
 
-This backend performs real YouTube media conversion with yt-dlp + FFmpeg. Deploy it as a container service (Render, Railway, Fly.io, VPS, etc.).
+Express + yt-dlp + FFmpeg backend for converter24. The Docker image also runs the BgUtils PO-token provider locally so yt-dlp can handle current YouTube PO-token requirements.
 
-Health check: `/health`
-Conversion: `/api/convert?url=<youtube-url>&format=mp4&quality=1080`
+## Endpoints
+- `GET /health`
+- `GET /api/convert?url=...&format=mp4|mp3|wav&quality=...`
 
-Use only for media you are authorized to download/convert.
+The service is intended for videos you are authorized to download or convert.
