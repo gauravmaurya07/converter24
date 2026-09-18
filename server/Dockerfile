@@ -14,4 +14,10 @@ RUN chmod +x start.sh && chown -R node:node /app/converter
 ENV NODE_ENV=production
 EXPOSE 10000
 USER node
-CMD ["/app/converter/start.sh"]
+
+# Override the provider image's inherited ENTRYPOINT. The provider image's
+# default entrypoint expects /app/build/main.js as its own process; our
+# container needs to start that provider in the background and then start
+# the converter API in the foreground.
+ENTRYPOINT ["/app/converter/start.sh"]
+CMD []
