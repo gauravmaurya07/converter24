@@ -48,7 +48,7 @@ export const youtubeService = {
       title: `YouTube Video (${videoId})`,
       author: 'YouTube Creator',
       thumbnail: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
-      url: `https://www.youtube.com/watch?v=videoId`,
+      url: `https://www.youtube.com/watch?v=${videoId}`,
     };
 
     try {

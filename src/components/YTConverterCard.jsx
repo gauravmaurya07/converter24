@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, 
   Clipboard, 
@@ -18,6 +18,7 @@ import {
   Radio
 } from 'lucide-react';
 import { youtubeService } from '../services/youtubeService';
+import { isConfigured, wakeServer, startJob, pollJob, fileUrl } from '../services/converterApi';
 
 export default function YTConverterCard() {
   const [url, setUrl] = useState('');
@@ -32,6 +33,10 @@ export default function YTConverterCard() {
   const [errorMessage, setErrorMessage] = useState('');
   const [copiedTitle, setCopiedTitle] = useState(false);
   const [isExtractingThumb, setIsExtractingThumb] = useState(false);
+  const abortRef = useRef(null);
+
+  // Stop polling if the component goes away mid-conversion
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   // Update default quality when format changes
   useEffect(() => {
@@ -152,68 +157,69 @@ export default function YTConverterCard() {
       return;
     }
 
-    const apiBase = (import.meta.env.VITE_CONVERTER_API_URL || '').replace(/\/$/, '');
-    if (!apiBase) {
+    if (!isConfigured()) {
       setErrorMessage('The media conversion server is not configured yet.');
       return;
     }
 
-    setStatus('converting');
-    setProgress(10);
-    setErrorMessage('');
-    setStatusText('Starting real media conversion...');
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const { signal } = controller;
 
-    const progressTimer = setInterval(() => {
-      setProgress((p) => Math.min(92, p + 4));
-      setStatusText(
-        format === 'mp3'
-          ? `Converting audio to MP3 (${quality} kbps)...`
-          : format === 'wav'
-          ? 'Extracting WAV audio...'
-          : `Converting video to playable MP4 (${quality}p)...`
-      );
-    }, 900);
+    setStatus('converting');
+    setProgress(3);
+    setErrorMessage('');
+    setStatusText('Connecting to the conversion server...');
+    const bump = (value) => setProgress((p) => Math.max(p, Math.min(99, value)));
 
     try {
-      const params = new URLSearchParams({ url, format, quality: String(quality) });
-      const response = await fetch(`${apiBase}/api/convert?${params.toString()}`);
-      if (!response.ok) {
-        let message = 'Conversion failed. Please try again.';
-        try {
-          const data = await response.json();
-          if (data?.error) message = data.error;
-        } catch (_) {}
-        throw new Error(message);
-      }
+      // Free hosting sleeps when idle - wait for it to wake up.
+      await wakeServer({
+        signal,
+        onSlow: () => setStatusText('Waking up the server (free hosting can take up to a minute)...'),
+      });
 
-      const blob = await response.blob();
-      if (!blob.size) throw new Error('The server returned an empty file.');
+      setStatusText('Starting conversion...');
+      const { id } = await startJob({ url, format, quality: String(quality) }, signal);
 
-      const extension = format;
+      const job = await pollJob(id, {
+        signal,
+        onUpdate: (j) => {
+          bump(j.progress);
+          if (j.status === 'queued') {
+            setStatusText(j.queuePosition > 1 ? `Waiting in queue (position ${j.queuePosition})...` : 'Waiting for a free converter...');
+          } else if (j.stage === 'fetching') {
+            setStatusText('Fetching video information...');
+          } else if (j.stage === 'downloading') {
+            setStatusText(`Downloading ${format === 'mp4' ? 'video' : 'audio'}... ${Math.min(99, j.progress)}%`);
+          } else if (j.stage === 'processing') {
+            setStatusText(format === 'mp4' ? 'Merging video and audio into MP4...' : `Converting to ${format.toUpperCase()}...`);
+          }
+        },
+      });
+
       const titleClean = (videoInfo?.title || `youtube_${videoId}`)
         .replace(/[^a-zA-Z0-9_\- ]/g, '')
         .trim()
         .substring(0, 70) || `youtube_${videoId}`;
-      const filename = `${titleClean}.${extension}`;
-      const objectUrl = URL.createObjectURL(blob);
 
-      clearInterval(progressTimer);
       setProgress(100);
       setStatusText('Conversion completed successfully.');
       setDownloadUrl({
-        url: objectUrl,
-        filename,
+        // The browser downloads straight from the server (streamed to disk, no big in-memory Blob).
+        url: fileUrl(id),
+        filename: job.filename || `${titleClean}.${format}`,
         format: format.toUpperCase(),
         quality: format === 'mp3' ? `${quality} kbps` : format === 'wav' ? 'Lossless WAV' : `${quality}p HD`,
-        size: `${(blob.size / (1024 * 1024)).toFixed(1)} MB`,
+        size: job.size ? `${(job.size / (1024 * 1024)).toFixed(1)} MB` : '',
       });
       setStatus('completed');
     } catch (error) {
-      clearInterval(progressTimer);
+      if (error?.name === 'AbortError') return;
       setProgress(0);
       setStatus('error');
       setStatusText('');
-      setErrorMessage(error.message || 'Conversion failed. Please try again.');
+      setErrorMessage(error?.message || 'Conversion failed. Please try again.');
     }
   };
 
@@ -654,7 +660,7 @@ export default function YTConverterCard() {
                   {videoInfo?.title || 'YouTube Transcoded Video'}
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Approx. Size: <strong className="text-slate-200">{downloadUrl.size}</strong> • 100% Free
+                  {downloadUrl.size && (<>Size: <strong className="text-slate-200">{downloadUrl.size}</strong> • </>)}100% Free
                 </p>
               </div>
             </div>
@@ -665,6 +671,7 @@ export default function YTConverterCard() {
                 <a
                   href={downloadUrl.url}
                   download={downloadUrl.filename}
+                  rel="noopener"
                   className="flex-1 py-4 px-6 rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white font-extrabold text-base flex items-center justify-center gap-2.5 shadow-xl shadow-red-600/20 active:scale-[0.99] transition-all text-center"
                 >
                   <Download className="w-5 h-5 stroke-[2.5]" />
