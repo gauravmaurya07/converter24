@@ -205,6 +205,8 @@ function buildArgs(job) {
     '--no-playlist',
     '--no-color',
     '--newline',
+    '--no-quiet',
+    '--progress',
     '--no-simulate',
     '--js-runtimes', 'node',
     '--socket-timeout', '30',
