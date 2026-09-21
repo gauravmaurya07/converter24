@@ -212,7 +212,7 @@ function buildArgs(job) {
     '--socket-timeout', '30',
     '--retries', '3',
     '--fragment-retries', '3',
-    '--concurrent-fragments', '4',
+    '--concurrent-fragments', '8',
     '--max-filesize', `${CONFIG.maxFileMB}M`,
     '--break-match-filters', `duration <=? ${CONFIG.maxDurationSec} & !is_live`,
     '--progress-template',
@@ -234,10 +234,12 @@ function buildArgs(job) {
   } else {
     // H.264 + AAC inside MP4 plays on every phone, TV and browser.
     args.push(
-      '-f', `bv*[height<=${job.quality}]+ba/b[height<=${job.quality}]/b`,
-      '-S', 'vcodec:h264,res,acodec:aac',
-      '--merge-output-format', 'mp4',
-      '--remux-video', 'mp4',
+      '-f',
+      `bv*[height<=${job.quality}][ext=mp4]+ba[ext=m4a]/b[height<=${job.quality}][ext=mp4]/b`,
+      '--merge-output-format',
+      'mp4',
+      '--remux-video',
+      'mp4'
     );
   }
 
@@ -330,8 +332,8 @@ function findOutput(job) {
 
 async function runJob(job) {
   job.status = 'running';
-  job.stage = 'fetching';
-  job.progress = 2;
+  job.stage = 'connecting';
+  job.progress = 5;
 
   let child;
   try {
@@ -353,32 +355,106 @@ async function runJob(job) {
   let stderrTail = '';
   let buffer = '';
 
-  const onLine = (line) => {
-    if (!line) return;
-    if (line.startsWith('C24META|')) {
-      try {
-        const meta = JSON.parse(line.slice(8));
-        if (meta.title) job.title = cleanName(meta.title);
-        job.duration = Number(meta.duration) || 0;
-      } catch {}
-      job.stage = 'downloading';
-    } else if (line.startsWith('C24P|')) {
-      const [, done, total, est, name] = line.split('|');
-      const d = Number(done);
-      const t = Number(total) || Number(est);
-      if (Number.isFinite(d) && t > 0) {
-        fractions.set(name, Math.min(1, d / t));
-        const sum = [...fractions.values()].reduce((a, b) => a + b, 0);
-        job.stage = 'downloading';
-        job.progress = Math.max(job.progress, Math.min(90, Math.round(5 + (85 * sum) / Math.max(expectedStreams, fractions.size))));
+const onLine = (line) => {
+  if (!line) return;
+
+  // Connecting to YouTube
+  if (/Extracting URL/i.test(line)) {
+    job.stage = 'connecting';
+    job.progress = Math.max(job.progress, 5);
+  }
+
+  // Verifying video
+  if (/Downloading webpage|Downloading player/i.test(line)) {
+    job.stage = 'verifying';
+    job.progress = Math.max(job.progress, 10);
+  }
+
+  // Fetching video information / formats
+  if (
+    /Downloading .*API JSON/i.test(line) ||
+    /Downloading .*player/i.test(line) ||
+    /Fetching/i.test(line)
+  ) {
+    job.stage = 'fetching_formats';
+    job.progress = Math.max(job.progress, 15);
+  }
+
+  // Metadata received
+  if (line.startsWith('C24META|')) {
+    try {
+      const meta = JSON.parse(line.slice(8));
+
+      if (meta.title) {
+        job.title = cleanName(meta.title);
       }
-    } else if (line.startsWith('C24FILE|')) {
-      job.filePath = line.slice(8).trim();
-    } else if (/^\[(Merger|VideoRemuxer|ExtractAudio|ffmpeg|FixupM4a|FixupM3u8|MoveFiles)\]/.test(line)) {
-      job.stage = 'processing';
-      job.progress = Math.max(job.progress, 92);
+
+      job.duration = Number(meta.duration) || 0;
+    } catch {}
+
+    job.stage = 'fetching_formats';
+    job.progress = Math.max(job.progress, 15);
+  }
+
+  // Download progress
+  else if (line.startsWith('C24P|')) {
+    const [, done, total, est, name] = line.split('|');
+
+    const d = Number(done);
+    const t = Number(total) || Number(est);
+
+    if (Number.isFinite(d) && t > 0) {
+      const fraction = Math.min(1, d / t);
+
+      fractions.set(name, fraction);
+
+      const entries = [...fractions.entries()];
+
+      if (job.format === 'mp4') {
+        if (entries.length <= 1) {
+          // Video: 20% → 75%
+          job.stage = 'downloading_video';
+
+          job.progress = Math.max(
+            job.progress,
+            Math.round(20 + fraction * 55)
+          );
+        } else {
+          // Audio: 75% → 88%
+          const audioFraction = entries[entries.length - 1][1];
+
+          job.stage = 'downloading_audio';
+
+          job.progress = Math.max(
+            job.progress,
+            Math.round(75 + audioFraction * 13)
+          );
+        }
+      } else {
+        // MP3 / WAV
+        job.stage = 'downloading_audio';
+
+        job.progress = Math.max(
+          job.progress,
+          Math.round(20 + fraction * 68)
+        );
+      }
     }
-  };
+  }
+
+  // Output file detected
+  else if (line.startsWith('C24FILE|')) {
+    job.filePath = line.slice(8).trim();
+  }
+
+  // FFmpeg / processing
+  else if (
+    /^\[(Merger|VideoRemuxer|ExtractAudio|ffmpeg|FixupM4a|FixupM3u8|MoveFiles)\]/i.test(line)
+  ) {
+    job.stage = 'processing';
+    job.progress = Math.max(job.progress, 90);
+  }
+};
 
   child.stdout.on('data', (chunk) => {
     buffer += chunk;
