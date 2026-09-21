@@ -16,6 +16,15 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 
+const SECRET_COOKIES = '/etc/secrets/cookies.txt';
+const COOKIES = '/tmp/cookies.txt';
+
+if (fs.existsSync(SECRET_COOKIES)) {
+  fs.copyFileSync(SECRET_COOKIES, COOKIES);
+}
+
+const cookieArgs = fs.existsSync(COOKIES) ? ['--cookies', COOKIES] : [];
+
 /* ------------------------------------------------------------------ config */
 
 const env = process.env;
@@ -212,6 +221,7 @@ function buildArgs(job) {
 
   if (CONFIG.proxy) args.push('--proxy', CONFIG.proxy);
   if (CONFIG.playerClients) args.push('--extractor-args', `youtube:player_client=${CONFIG.playerClients}`);
+  args.push(...cookieArgs);
   if (pot.enabled) args.push('--extractor-args', `youtubepot-bgutilhttp:base_url=http://127.0.0.1:${CONFIG.potPort}`);
 
   if (job.format === 'mp3') {
