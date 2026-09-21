@@ -187,13 +187,25 @@ export default function YTConverterCard() {
         onUpdate: (j) => {
           bump(j.progress);
           if (j.status === 'queued') {
-            setStatusText(j.queuePosition > 1 ? `Waiting in queue (position ${j.queuePosition})...` : 'Waiting for a free converter...');
-          } else if (j.stage === 'fetching') {
-            setStatusText('Fetching video information...');
-          } else if (j.stage === 'downloading') {
-            setStatusText(`Downloading ${format === 'mp4' ? 'video' : 'audio'}... ${Math.min(99, j.progress)}%`);
+            setStatusText(
+              j.queuePosition > 1
+                ? `Waiting in queue (position ${j.queuePosition})...`
+                : 'Waiting for a free converter...'
+            );
+          } else if (j.stage === 'connecting') {
+            setStatusText(`🔎 Connecting to YouTube... ${j.progress}%`);
+          } else if (j.stage === 'verifying') {
+            setStatusText(`🔐 Verifying video... ${j.progress}%`);
+          } else if (j.stage === 'fetching_formats') {
+            setStatusText(`📋 Fetching formats... ${j.progress}%`);
+          } else if (j.stage === 'downloading_video') {
+            setStatusText(`⬇️ Downloading video... ${j.progress}%`);
+          } else if (j.stage === 'downloading_audio') {
+            setStatusText(`🔊 Downloading audio... ${j.progress}%`);
           } else if (j.stage === 'processing') {
-            setStatusText(format === 'mp4' ? 'Merging video and audio into MP4...' : `Converting to ${format.toUpperCase()}...`);
+            setStatusText(`⚙️ Processing... ${j.progress}%`);
+          } else if (j.stage === 'done') {
+            setStatusText('✅ Completed!!');
           }
         },
       });
