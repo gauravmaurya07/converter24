@@ -193,19 +193,19 @@ export default function YTConverterCard() {
                 : 'Waiting for a free converter...'
             );
           } else if (j.stage === 'connecting') {
-            setStatusText(`🔎 Connecting to YouTube... ${j.progress}%`);
+            setStatusText(`Connecting to YouTube... ${j.progress}%`);
           } else if (j.stage === 'verifying') {
-            setStatusText(`🔐 Verifying video... ${j.progress}%`);
+            setStatusText(`Verifying video... ${j.progress}%`);
           } else if (j.stage === 'fetching_formats') {
-            setStatusText(`📋 Fetching formats... ${j.progress}%`);
+            setStatusText(`Fetching formats... ${j.progress}%`);
           } else if (j.stage === 'downloading_video') {
-            setStatusText(`⬇️ Downloading video... ${j.progress}%`);
+            setStatusText(`⬇Downloading video... ${j.progress}%`);
           } else if (j.stage === 'downloading_audio') {
-            setStatusText(`🔊 Downloading audio... ${j.progress}%`);
+            setStatusText(`Downloading audio... ${j.progress}%`);
           } else if (j.stage === 'processing') {
-            setStatusText(`⚙️ Processing... ${j.progress}%`);
+            setStatusText(`Processing... ${j.progress}%`);
           } else if (j.stage === 'done') {
-            setStatusText('✅ Completed!!');
+            setStatusText('Completed!!');
           }
         },
       });
