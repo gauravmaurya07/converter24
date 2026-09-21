@@ -24,6 +24,7 @@ if (fs.existsSync(SECRET_COOKIES)) {
 }
 
 const cookieArgs = fs.existsSync(COOKIES) ? ['--cookies', COOKIES] : [];
+console.log(new Date().toISOString(), '[startup] cookies file present:', fs.existsSync(COOKIES));
 
 /* ------------------------------------------------------------------ config */
 
@@ -294,7 +295,7 @@ function fail(job, code, detail) {
   job.errorCode = code;
   job.error = ERROR_MESSAGES[code] || ERROR_MESSAGES.failed;
   job.finishedAt = Date.now();
-  log(`[job ${job.id.slice(0, 8)}] FAILED ${code}: ${(detail || '').toString().trim().slice(-600)}`);
+  log(`[job ${job.id.slice(0, 8)}] FAILED ${code}: ${(detail || '').toString().trim().slice(-1500)}`);
 }
 
 async function probeOk(file) {
